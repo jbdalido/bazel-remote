@@ -33,7 +33,7 @@ access_log_level: none
 log_timezone: local
 `
 
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ gcs_proxy:
   use_default_credentials: false
   json_credentials_file: /opt/creds.json
 `
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +124,7 @@ http_proxy:
   url: https://remote-cache.com:8080/cache
   mode: zstd
 `
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +202,7 @@ s3_proxy:
   access_key_id: EXAMPLE_ACCESS_KEY
   secret_access_key: EXAMPLE_SECRET_KEY
 `
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,6 +237,55 @@ s3_proxy:
 	}
 }
 
+func TestValidLDAPConfig(t *testing.T) {
+	yaml := `host: localhost
+port: 8080
+dir: /opt/cache-dir
+max_size: 100
+ldap:
+  url: ldap://ldap.example.com
+  base_dn: OU=My Users,DC=example,DC=com
+  username_attribute: sAMAccountName
+  bind_user: ldapuser
+  bind_password: ldappassword
+  cache_time: 3600s
+  groups_query: (|(memberOf=CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com)(memberOf=CN=other-users,OU=Groups2,OU=Alien Users,DC=foo,DC=org))
+`
+	config, err := NewFromYaml([]byte(yaml))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedConfig := &Config{
+		HTTPAddress:        "localhost:8080",
+		Dir:                "/opt/cache-dir",
+		MaxSize:            100,
+		StorageMode:        "zstd",
+		ZstdImplementation: "go",
+		LDAP: &LDAPConfig{
+			URL:               "ldap://ldap.example.com",
+			BaseDN:            "OU=My Users,DC=example,DC=com",
+			BindUser:          "ldapuser",
+			BindPassword:      "ldappassword",
+			UsernameAttribute: "sAMAccountName",
+			GroupsQuery:       "(|(memberOf=CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com)(memberOf=CN=other-users,OU=Groups2,OU=Alien Users,DC=foo,DC=org))",
+			CacheTime:         3600 * time.Second,
+		},
+		NumUploaders:           100,
+		MinTLSVersion:          "1.0",
+		MaxQueuedUploads:       1000000,
+		MaxBlobSize:            math.MaxInt64,
+		MaxProxyBlobSize:       math.MaxInt64,
+		MetricsDurationBuckets: []float64{.5, 1, 2.5, 5, 10, 20, 40, 80, 160, 320},
+		AccessLogLevel:         "all",
+		LogTimezone:            "UTC",
+	}
+
+	if !cmp.Equal(config, expectedConfig) {
+		t.Fatalf("Expected '%+v' but got '%+v'", expectedConfig, config)
+	}
+}
+
 func TestValidProfiling(t *testing.T) {
 	yaml := `host: localhost
 port: 1234
@@ -244,7 +293,7 @@ dir: /opt/cache-dir
 max_size: 42
 profile_address: :7070
 `
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -276,7 +325,7 @@ profile_address: :7070
 
 	expectedConfig.ProfileAddress = "192.168.1.1:7070"
 
-	config, err = newFromYaml([]byte(yaml))
+	config, err = NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +343,7 @@ max_size: 42
 storage_mode: zstd
 endpoint_metrics_duration_buckets: [.005, .1, 5]
 `
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,7 +432,7 @@ storage_mode: gzip
 		}}
 
 	for _, tc := range tests {
-		cfg, err := newFromYaml([]byte(tc.yaml))
+		cfg, err := NewFromYaml([]byte(tc.yaml))
 		if !tc.invalid && err != nil {
 			t.Error("Expected to succeed, got", err)
 		}
@@ -426,7 +475,7 @@ dir: /opt/cache-dir
 max_size: 42
 storage_mode: zstd
 `
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -461,7 +510,7 @@ dir: /opt/cache-dir
 max_size: 42
 storage_mode: zstd
 `
-	config, err := newFromYaml([]byte(yaml))
+	config, err := NewFromYaml([]byte(yaml))
 	if err != nil {
 		t.Fatal(err)
 	}

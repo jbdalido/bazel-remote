@@ -40,6 +40,16 @@ type URLBackendConfig struct {
 	CaFile   string   `yaml:"ca_file"`
 }
 
+type LDAPConfig struct {
+	URL               string        `yaml:"url"`
+	BaseDN            string        `yaml:"base_dn"`
+	BindUser          string        `yaml:"bind_user"`
+	BindPassword      string        `yaml:"bind_password"`
+	UsernameAttribute string        `yaml:"username_attribute"`
+	GroupsQuery       string        `yaml:"groups_query"`
+	CacheTime         time.Duration `yaml:"cache_time"`
+}
+
 func (c *URLBackendConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	type Aux URLBackendConfig
 	aux := &struct {
@@ -91,6 +101,7 @@ type Config struct {
 	StorageMode                 string                    `yaml:"storage_mode"`
 	ZstdImplementation          string                    `yaml:"zstd_implementation"`
 	HtpasswdFile                string                    `yaml:"htpasswd_file"`
+	LDAP                        *LDAPConfig               `yaml:"ldap,omitempty"`
 	MinTLSVersion               string                    `yaml:"min_tls_version"`
 	TLSCaFile                   string                    `yaml:"tls_ca_file"`
 	TLSCertFile                 string                    `yaml:"tls_cert_file"`
@@ -163,6 +174,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 	hc *URLBackendConfig,
 	grpcb *URLBackendConfig,
 	gcs *GoogleCloudStorageConfig,
+	ldap *LDAPConfig,
 	s3 *S3CloudStorageConfig,
 	azblob *AzBlobStorageConfig,
 	disableHTTPACValidation bool,
@@ -199,6 +211,7 @@ func newFromArgs(dir string, maxSize int, storageMode string, zstdImplementation
 		GoogleCloudStorage:          gcs,
 		HTTPBackend:                 hc,
 		GRPCBackend:                 grpcb,
+		LDAP:                        ldap,
 		IdleTimeout:                 idleTimeout,
 		DisableHTTPACValidation:     disableHTTPACValidation,
 		DisableGRPCACDepsCheck:      disableGRPCACDepsCheck,
@@ -237,10 +250,10 @@ func newFromYamlFile(path string) (*Config, error) {
 		return nil, fmt.Errorf("Failed to read config file '%s': %v", path, err)
 	}
 
-	return newFromYaml(data)
+	return NewFromYaml(data)
 }
 
-func newFromYaml(data []byte) (*Config, error) {
+func NewFromYaml(data []byte) (*Config, error) {
 	yc := YamlConfig{
 		DigestFunctionNames: []string{"sha256"},
 		Config: Config{
@@ -387,7 +400,7 @@ func validateConfig(c *Config) error {
 			"and 'tls_cert_file' specified.")
 	}
 
-	if c.AllowUnauthenticatedReads && c.TLSCaFile == "" && c.HtpasswdFile == "" {
+	if c.AllowUnauthenticatedReads && c.TLSCaFile == "" && c.HtpasswdFile == "" && c.LDAP == nil {
 		return errors.New("AllowUnauthenticatedReads setting is only available when authentication is enabled")
 	}
 
@@ -466,6 +479,25 @@ func validateConfig(c *Config) error {
 				return errors.New("'endpoint_metrics_duration_buckets' must not contain duplicate buckets")
 			}
 			duplicates[bucket] = true
+		}
+	}
+
+	if c.HtpasswdFile != "" && c.TLSCaFile != "" && c.LDAP != nil {
+		return errors.New("One can specify at most one authentication mechanism")
+	}
+
+	if c.LDAP != nil {
+		if c.LDAP.URL == "" {
+			return errors.New("The 'url' field is required for 'ldap'")
+		}
+		if c.LDAP.BaseDN == "" {
+			return errors.New("The 'base_dn' field is required for 'ldap'")
+		}
+		if c.LDAP.UsernameAttribute == "" {
+			c.LDAP.UsernameAttribute = "uid"
+		}
+		if c.LDAP.CacheTime <= 0 {
+			c.LDAP.CacheTime = 3600
 		}
 	}
 
@@ -628,6 +660,18 @@ func get(ctx *cli.Context) (*Config, error) {
 			dfs = append(dfs, df)
 		}
 	}
+	var ldap *LDAPConfig
+	if ctx.String("ldap.url") != "" {
+		ldap = &LDAPConfig{
+			URL:               ctx.String("ldap.url"),
+			BaseDN:            ctx.String("ldap.base_dn"),
+			BindUser:          ctx.String("ldap.bind_user"),
+			BindPassword:      ctx.String("ldap.bind_password"),
+			UsernameAttribute: ctx.String("ldap.username_attribute"),
+			GroupsQuery:       ctx.String("ldap.groups_query"),
+			CacheTime:         ctx.Duration("ldap.cache_time"),
+		}
+	}
 
 	return newFromArgs(
 		ctx.String("dir"),
@@ -649,6 +693,7 @@ func get(ctx *cli.Context) (*Config, error) {
 		hc,
 		grpcb,
 		gcs,
+		ldap,
 		s3,
 		azblob,
 		ctx.Bool("disable_http_ac_validation"),

@@ -292,6 +292,30 @@ OPTIONS:
       Google credentials for the Google Cloud Storage proxy backend.
       [$BAZEL_REMOTE_GCS_JSON_CREDENTIALS_FILE]
 
+   --ldap.url value The LDAP URL which may include a port. LDAP over SSL
+      (LDAPs) is also supported. Note that this feature is currently considered
+      experimental. [$BAZEL_REMOTE_LDAP_URL]
+
+   --ldap.base_dn value The distinguished name of the search base.
+      [$BAZEL_REMOTE_LDAP_BASE_DN]
+
+   --ldap.bind_user value The user who is allowed to perform a search within
+      the base DN. If none is specified the connection and the search is
+      performed without an authentication. It is recommended to use a read-only
+      account. [$BAZEL_REMOTE_LDAP_BIND_USER]
+
+   --ldap.bind_password value The password of the bind user.
+      [$BAZEL_REMOTE_LDAP_BIND_PASSWORD]
+
+   --ldap.username_attribute value The user attribute of a connecting user.
+      (default: "uid") [$BAZEL_REMOTE_LDAP_USER_ATTRIBUTE]
+
+   --ldap.groups_query value Filter clause for searching groups.
+      [$BAZEL_REMOTE_LDAP_GROUPS_QUERY]
+
+   --ldap.cache_time value The amount of time to cache a successful
+      authentication in seconds. (default: 3600) [$BAZEL_REMOTE_LDAP_CACHE_TIME]
+
    --s3.endpoint value The S3/minio endpoint to use when using S3 proxy
       backend. [$BAZEL_REMOTE_S3_ENDPOINT]
 
@@ -469,7 +493,15 @@ http_address: 0.0.0.0:8080
 # Alternatively, you can use simple authentication:
 #htpasswd_file: path/to/.htpasswd
 
-
+# At most one authentication mechanism can be used
+#ldap:
+#  url: ldaps://ldap.example.com:636
+#  base_dn: OU=My Users,DC=example,DC=com
+#  username_attribute: sAMAccountName      # defaults to "uid"
+#  bind_user: ldapuser
+#  bind_password: ldappassword
+#  cache_time: 3600                        # in seconds (default 1 hour)
+#  groups_query: (memberOf=CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com)
 
 # If tls_ca_file or htpasswd_file are specified, you can choose
 # whether or not to allow unauthenticated read access:
@@ -652,22 +684,24 @@ See [examples/docker-compose.yml](examples/docker-compose.yml) for an example co
   alb.ingress.kubernetes.io/target-type: ip
   ```
 
-### Build your own
+### Build your own docker image
 
 The command below will build a docker image from source and install it into your local docker registry.
 
 ```bash
-$ bazel run :bazel-remote-image -- --max_size 5 --dir /your/path/to/data
+$ bazel build :bazel-remote-image-tarball && docker load -i bazel-bin/bazel-remote-image-tarball/tarball.tar
+$ docker run buchgr/bazel-remote-cache:tmp-amd64 --max_size 5 --dir /your/path/to/data
 ```
 
-### ARM Support
+### ARM64 docker image
 
-Bazel remote cache server can be run on an ARM architecture (i.e.: on a Raspberry Pi).
+Bazel-remote can also run on ARM64 architecture devices, for example on a Raspberry Pi.
 
-To build for ARM, use:
+To build a docker image for ARM64:
 
 ```bash
-$ bazel run :bazel-remote-image-arm64 -- --max_size 5 --dir /your/path/to/data
+$ bazel build :bazel-remote-image-arm64-tarball && docker load -i bazel-bin/bazel-remote-image-arm64-tarball/tarball.tar
+$ docker run buchgr/bazel-remote-cache:tmp-arm64 --max_size 5 --dir /your/path/to/data
 ```
 
 ## Build a standalone Linux binary
@@ -679,7 +713,12 @@ $ bazel build :bazel-remote
 ### Authentication
 
 bazel-remote defaults to allow unauthenticated access, but basic `.htpasswd`
-style authentication and mutual TLS authentication are also supported.
+style authentication, mutual TLS authentication and (experimental) LDAP are
+also supported.
+
+Note that only one authentication mechanism can be used at a time.
+
+#### htpasswd
 
 In order to pass a `.htpasswd` and/or server key file(s) to the cache
 inside a docker container, you first need to mount the file in the
@@ -698,6 +737,8 @@ $ docker run -v /path/to/cache/dir:/data \
 	--htpasswd_file /etc/bazel-remote/htpasswd --max_size 5
 ```
 
+#### mTLS
+
 If you prefer not using `.htpasswd` files it is also possible to
 authenticate with mTLS (also can be known as "authenticating client
 certificates"). You can do this by passing in the the cert/key the
@@ -714,6 +755,27 @@ $ docker run -v /path/to/cache/dir:/data \
 	--tls_cert_file=/etc/bazel-remote/server_cert \
 	--tls_key_file=/etc/bazel-remote/server_key \
 	--max_size 5
+```
+
+#### LDAP
+
+There is also an experimental LDAP authentication method. A configuration
+file is advised to avoid leaking the ldap.bind_password value to local
+users, but command line arguments are also supported.
+
+Note that the configuration options for this feature might change while
+the feature is still considered "experimental".
+
+```bash
+$ docker run -v /path/to/cache/dir:/data \
+   -p 9090:8080 -p 9092:9092 buchgr/bazel-remote-cache \
+   --ldap.url="ldaps://ldap.example.com:636" \
+   --ldap.base_dn="OU=My Users,DC=example,DC=com" \
+   --ldap.groups_query="(|(memberOf=CN=bazel-users,OU=Groups,OU=My Users,DC=example,DC=com)(memberOf=CN=other-users,OU=Groups2,OU=Alien Users,DC=foo,DC=org))" \
+   --ldap.cache_time=100 \
+   --ldap.bind_user="cn=readonly.username,ou=readonly,OU=Other Users,DC=example,DC=com" \
+   --ldap.bind_password="secret4Sure" \
+   --max_size 5
 ```
 
 ### Using bazel-remote with AWS Credential file authentication for S3 inside a docker container

@@ -256,6 +256,48 @@ func GetCliFlags() []cli.Flag {
 			EnvVars: []string{"BAZEL_REMOTE_GCS_JSON_CREDENTIALS_FILE"},
 		},
 		&cli.StringFlag{
+			Name:    "ldap.url",
+			Value:   "",
+			Usage:   "The LDAP URL which may include a port. LDAP over SSL (LDAPs) is also supported. Note that this feature is currently considered experimental.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_URL"},
+		},
+		&cli.StringFlag{
+			Name:    "ldap.base_dn",
+			Value:   "",
+			Usage:   "The distinguished name of the search base.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_BASE_DN"},
+		},
+		// to allow anonymous access do not require BindUser or BindPassword
+		&cli.StringFlag{
+			Name:    "ldap.bind_user",
+			Value:   "",
+			Usage:   "The user who is allowed to perform a search within the base DN. If none is specified the connection and the search is performed without an authentication. It is recommended to use a read-only account.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_BIND_USER"},
+		},
+		&cli.StringFlag{
+			Name:    "ldap.bind_password",
+			Value:   "",
+			Usage:   "The password of the bind user.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_BIND_PASSWORD"},
+		},
+		&cli.StringFlag{
+			Name:    "ldap.username_attribute",
+			Value:   "uid",
+			Usage:   "The user attribute of a connecting user.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_USER_ATTRIBUTE"},
+		},
+		&cli.StringFlag{
+			Name:    "ldap.groups_query",
+			Usage:   "Filter clause for searching groups.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_GROUPS_QUERY"},
+		},
+		&cli.IntFlag{
+			Name:    "ldap.cache_time",
+			Value:   3600,
+			Usage:   "The amount of time to cache a successful authentication in seconds.",
+			EnvVars: []string{"BAZEL_REMOTE_LDAP_CACHE_TIME"},
+		},
+		&cli.StringFlag{
 			Name:    "s3.endpoint",
 			Value:   "",
 			Usage:   "The S3/minio endpoint to use when using S3 proxy backend.",
