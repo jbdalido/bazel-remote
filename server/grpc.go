@@ -30,7 +30,9 @@ import (
 
 const (
 	hashKeyLength = 64
+	hashKeyBlake3 = 65
 	emptySha256   = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+	emptyBlake3   = "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
 )
 
 const grpcHealthServiceName = "/grpc.health.v1.Health/Check"
@@ -106,7 +108,7 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 
 	resp := pb.ServerCapabilities{
 		CacheCapabilities: &pb.CacheCapabilities{
-			DigestFunctions: []pb.DigestFunction_Value{pb.DigestFunction_SHA256},
+			DigestFunctions: []pb.DigestFunction_Value{pb.DigestFunction_SHA256, pb.DigestFunction_BLAKE3},
 			ActionCacheUpdateCapabilities: &pb.ActionCacheUpdateCapabilities{
 				UpdateEnabled: true,
 			},
@@ -135,7 +137,11 @@ func (s *grpcServer) GetCapabilities(ctx context.Context,
 // Return an error if `hash` is not a valid cache key.
 func (s *grpcServer) validateHash(hash string, size int64, logPrefix string) error {
 	if size == int64(0) {
-		if hash == emptySha256 {
+		if hash == emptySha256 || hash == emptyBlake3 {
+			return nil
+		}
+
+		if hash == emptyBlake3 {
 			return nil
 		}
 
@@ -145,7 +151,7 @@ func (s *grpcServer) validateHash(hash string, size int64, logPrefix string) err
 	}
 
 	if len(hash) != hashKeyLength {
-		msg := fmt.Sprintf("Hash length must be length %d", hashKeyLength)
+		msg := fmt.Sprintf("Hash length must be length %d %d %s", hashKeyLength, len(hash), hash)
 		s.accessLogger.Printf("%s %s: %s", logPrefix, hash, msg)
 		return status.Error(codes.InvalidArgument, msg)
 	}

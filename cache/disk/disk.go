@@ -89,6 +89,7 @@ type diskCache struct {
 
 const sha256HashStrSize = sha256.Size * 2 // Two hex characters per byte.
 const emptySha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+const emptyBlake3 = "af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
 
 func internalErr(err error) *cache.Error {
 	return &cache.Error{
@@ -164,7 +165,8 @@ func (c *diskCache) getElementPath(key Key, value lruItem) string {
 		kind = cache.RAW
 	}
 
-	return filepath.Join(c.dir, c.FileLocation(kind, value.legacy, hash, value.size, value.random))
+	p := filepath.Join(c.dir, c.FileLocation(kind, value.legacy, hash, value.size, value.random))
+	return p
 }
 
 func (c *diskCache) removeFile(f string) {
@@ -237,7 +239,7 @@ func (c *diskCache) Put(ctx context.Context, kind cache.EntryKind, hash string, 
 		return badReqErr("Invalid hash size: %d, expected: %d", len(hash), sha256.Size)
 	}
 
-	if kind == cache.CAS && size == 0 && hash == emptySha256 {
+	if kind == cache.CAS && size == 0 && (hash == emptySha256 || hash == emptyBlake3) {
 		return nil
 	}
 
@@ -555,11 +557,10 @@ func (c *diskCache) get(ctx context.Context, kind cache.EntryKind, hash string, 
 		return nil, -1, badReqErr("Invalid hash size: %d, expected: %d", len(hash), sha256.Size)
 	}
 
-	if kind == cache.CAS && size <= 0 && hash == emptySha256 {
+	if kind == cache.CAS && size <= 0 && (hash == emptySha256 || hash == emptyBlake3) {
 		if zstd {
 			return io.NopCloser(bytes.NewReader(emptyZstdBlob)), 0, nil
 		}
-
 		return io.NopCloser(bytes.NewReader([]byte{})), 0, nil
 	}
 
@@ -713,7 +714,7 @@ func (c *diskCache) Contains(ctx context.Context, kind cache.EntryKind, hash str
 		return false, -1
 	}
 
-	if kind == cache.CAS && size <= 0 && hash == emptySha256 {
+	if kind == cache.CAS && size <= 0 && (hash == emptySha256 || hash == emptyBlake3) {
 		return true, 0
 	}
 

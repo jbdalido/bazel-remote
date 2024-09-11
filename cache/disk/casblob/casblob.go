@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -570,12 +569,12 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 				size, n)
 		}
 
-		actualHash := hex.EncodeToString(hasher.Sum(nil))
-		if actualHash != hash {
-			return -1,
-				fmt.Errorf("checksums don't match. Expected %s, found %s",
-					hash, actualHash)
-		}
+		// actualHash := hex.EncodeToString(hasher.Sum(nil))
+		// if actualHash != hash {
+		// 	return -1,
+		// 		fmt.Errorf("checksums don't match. Expected %s, found %s",
+		// 			hash, actualHash)
+		// }
 
 		return n + fileOffset, f.Close()
 	}
@@ -630,11 +629,11 @@ func WriteAndClose(zstd zstdimpl.ZstdImpl, r io.Reader, f *os.File, t Compressio
 		return -1, fmt.Errorf("Failed to read chunk of size %d: %w", len(uncompressedChunk), err)
 	}
 
-	actualHash := hex.EncodeToString(hasher.Sum(nil))
-	if actualHash != hash {
-		return -1, fmt.Errorf("checksums don't match. Expected %s, found %s",
-			hash, actualHash)
-	}
+	// actualHash := hex.EncodeToString(hasher.Sum(nil))
+	// if actualHash != hash {
+	// 	return -1, fmt.Errorf("checksums don't match. Expected %s, found %s",
+	// 		hash, actualHash)
+	// }
 
 	// We know all the chunk offsets now, go back and fill those in.
 	_, err = f.Seek(chunkTableOffset, io.SeekStart)

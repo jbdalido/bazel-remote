@@ -89,9 +89,8 @@ type Proxy interface {
 // and returns a new ActionCache key to use instead. If the instance name
 // is empty, then the original key is returned unchanged.
 func TransformActionCacheKey(key, instance string, logger Logger) string {
-	if instance == "" {
-		return key
-	}
+
+	return key
 
 	h := sha256.New()
 	h.Write([]byte(key))

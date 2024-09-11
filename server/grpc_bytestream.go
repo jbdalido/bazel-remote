@@ -180,7 +180,7 @@ func (s *grpcServer) Read(req *bytestream.ReadRequest,
 
 // Parse a ReadRequest.ResourceName, return the validated hash, size, compression type and an error.
 func (s *grpcServer) parseReadResource(name string, errorPrefix string) (string, int64, casblob.CompressionType, error) {
-
+	name = strings.Replace(name, "/blake3", "", 1)
 	// The resource name should be of the format:
 	// [{instance_name}]/blobs/{hash}/{size}
 	// Or:
@@ -305,11 +305,11 @@ func (s *grpcServer) parseWriteResource(r string) (string, int64, casblob.Compre
 	// rem[0] should hold the uuid, which we don't use- ignore it.
 
 	if rem[1] == "blobs" {
-		hash := rem[2]
-		size, err := strconv.ParseInt(rem[3], 10, 64)
+		hash := rem[3]
+		size, err := strconv.ParseInt(rem[4], 10, 64)
 		if err != nil {
 			return "", 0, casblob.Identity,
-				status.Errorf(codes.InvalidArgument, "Unable to parse size: %s from %q", rem[3], r)
+				status.Errorf(codes.InvalidArgument, "Unable to parse size: %s from %q", rem[4], r)
 		}
 
 		if size < 0 {
@@ -330,7 +330,7 @@ func (s *grpcServer) parseWriteResource(r string) (string, int64, casblob.Compre
 			status.Errorf(codes.InvalidArgument, "Unable to parse resource name: %s", r)
 	}
 
-	sizeStr := rem[4]
+	sizeStr := rem[5]
 
 	size, err := strconv.ParseInt(sizeStr, 10, 64)
 	if err != nil {
